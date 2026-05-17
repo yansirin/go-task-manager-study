@@ -16,27 +16,31 @@ type Task struct {
 	Done  bool   `json:"done"`
 }
 
+type TaskStore interface {
+	Load() ([]Task, error)
+	Save(tasks []Task) error
+}
+
+type JSONFileStore struct {
+	filename string
+}
+
+func NewJSONFileStore(filename string) *JSONFileStore {
+	return &JSONFileStore{filename: filename}
+}
+
 // TaskManager acts as our core service engine
 type TaskManager struct {
-	filename string
-	tasks    []Task
+	store TaskStore
+	tasks []Task
 }
 
 // NewTaskManager is a "constructor" function helper
-func NewTaskManager(filename string) *TaskManager {
+func NewTaskManager(store TaskStore) *TaskManager {
 	return &TaskManager{
-		filename: filename,
-		tasks:    []Task{},
+		store: store,
+		tasks: []Task{},
 	}
-}
-
-// Save persists the internal tasks slice back to the file
-func (m *TaskManager) Save() error {
-	jsonTasks, err := json.MarshalIndent(m.tasks, "", "	")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(m.filename, jsonTasks, 0644)
 }
 
 func renderCheckbox(b bool) string {
@@ -46,14 +50,42 @@ func renderCheckbox(b bool) string {
 	return "[ ]"
 }
 
-func (m *TaskManager) Load() error {
-	data, err := os.ReadFile(m.filename)
-	if err == nil {
-		json.Unmarshal(data, &m.tasks)
-	} else if !errors.Is(err, os.ErrNotExist) {
-		log.Fatal("Could not read file:", err)
+func (s *JSONFileStore) Load() ([]Task, error) {
+	data, err := os.ReadFile(s.filename)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return []Task{}, nil
+		}
+		return nil, err
 	}
-	return err
+
+	var tasks []Task
+	if err := json.Unmarshal(data, &tasks); err != nil {
+		return nil, err
+	}
+
+	return tasks, nil
+}
+
+func (s *JSONFileStore) Save(tasks []Task) error {
+	jsonTasks, err := json.MarshalIndent(tasks, "", "	")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(s.filename, jsonTasks, 0644)
+}
+
+func (m *TaskManager) Load() error {
+	loadedTasks, err := m.store.Load()
+	if err != nil {
+		return err
+	}
+	m.tasks = loadedTasks
+	return nil
+}
+
+func (m *TaskManager) Save() error {
+	return m.store.Save(m.tasks)
 }
 
 func (m *TaskManager) List() {
@@ -97,8 +129,10 @@ func (m *TaskManager) Delete(id int) bool {
 }
 
 func main() {
+	fileStore := NewJSONFileStore("tasks.json")
+
 	// Initialize our engine
-	manager := NewTaskManager("tasks.json")
+	manager := NewTaskManager(fileStore)
 
 	// 1. LOAD DATA
 	if err := manager.Load(); err != nil {
