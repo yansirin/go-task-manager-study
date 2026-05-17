@@ -1,0 +1,10 @@
+# Ignore compiled binaries
+task-manager
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Ignore OS specific files
+.DS_Store
