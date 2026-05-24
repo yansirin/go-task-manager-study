@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -141,48 +142,64 @@ func main() {
 
 	// 2. PARSE CLI INPUT
 	if len(os.Args) < 2 {
-		fmt.Println("Usage: task-manager [add|list|done|delete]")
+		fmt.Println("Usage: taskmaster <command> [<args>]")
+		fmt.Println("Commands: add, list, done, delete")
 		return
 	}
 
-	command := os.Args[1]
+	// 3. DEFINE SUBCOMMANDS
+	addCmd := flag.NewFlagSet("add", flag.ExitOnError)
+	doneCmd := flag.NewFlagSet("done", flag.ExitOnError)
+	deleteCmd := flag.NewFlagSet("delete", flag.ExitOnError)
 
-	// 3. EXECUTE ENGINE ACTIONS
-	switch command {
+	// 4. EXECUTE ENGINE ACTIONS
+	switch os.Args[1] {
 	case "add":
-		if len(os.Args) < 3 {
+		// Parse everything after 'add'
+		addCmd.Parse(os.Args[2:])
+
+		// flag.Args() gathers everything remaining after flags are parsed
+		remaining := addCmd.Args()
+		if len(remaining) < 1 {
 			fmt.Println("Error: Provide a task title")
 			return
 		}
-		manager.Add(os.Args[2])
+
+		manager.Add(remaining[0])
 		fmt.Println("Task added successfully!")
 
 	case "list":
 		manager.List()
 
 	case "done":
-		if len(os.Args) < 3 {
+		doneCmd.Parse(os.Args[2:])
+
+		remaining := doneCmd.Args()
+		if len(remaining) < 1 {
 			fmt.Println("Error: Provide a task ID")
 			return
 		}
-		id, err := strconv.Atoi(os.Args[2])
+		id, err := strconv.Atoi(remaining[0])
 		if err != nil {
 			fmt.Println("Error: Invalid ID")
 			return
 		}
 
 		if manager.Done(id) {
-			fmt.Println("Task done!")
+			fmt.Printf("Task %d marked as done!\n", id)
 		} else {
 			fmt.Println("Task not found.")
 		}
 
 	case "delete":
-		if len(os.Args) < 3 {
+		deleteCmd.Parse(os.Args[2:])
+
+		remaining := deleteCmd.Args()
+		if len(remaining) < 1 {
 			fmt.Println("Error: Provide a task ID")
 			return
 		}
-		id, err := strconv.Atoi(os.Args[2])
+		id, err := strconv.Atoi(remaining[0])
 
 		if err != nil {
 			fmt.Println("Error: Invalid task ID. Please provide a valid number.")
@@ -196,7 +213,7 @@ func main() {
 		}
 
 	default:
-		fmt.Println("Unknown command:", command)
+		fmt.Println("Unknown command:", os.Args[1])
 		return
 	}
 
